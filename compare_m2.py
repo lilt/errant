@@ -234,7 +234,7 @@ def computeFScore(tp, fp, fn, beta):
 	p = float(tp)/(tp+fp) if fp else 1.0
 	r = float(tp)/(tp+fn) if fn else 1.0
 	f = float((1+(beta**2))*p*r)/(((beta**2)*p)+r) if p+r else 0.0
-	return round(p, 4), round(r, 4), round(f, 4)
+	return round(p * 100.0, 3), round(r * 100.0, 3), round(f * 100.0, 3)
 
 # Input 1-2: Two error category dicts. Key is cat, value is list of TP, FP, FN.
 # Output: The dictionaries combined with cumulative TP, FP, FN.
