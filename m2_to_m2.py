@@ -61,7 +61,7 @@ def main(args):
 							if not gold_edit: continue
 						# Give the edit an automatic error type.
 						if not args.old_cats:
-							cat = cat_rules.autoTypeEdit(gold_edit, proc_orig, proc_cor, gb_spell, tag_map, nlp, stemmer)
+							cat = cat_rules.auto_type_edit(gold_edit, proc_orig, proc_cor, gb_spell, tag_map, nlp, stemmer)
 							gold_edit[2] = cat
 						# Write the edit to the output m2 file.
 						out_m2.write(toolbox.formatEdit(gold_edit, coder)+"\n")
@@ -72,7 +72,7 @@ def main(args):
 					# Loop through the edits.
 					for auto_edit in auto_edits:
 						# Give each edit an automatic error type.
-						cat = cat_rules.autoTypeEdit(auto_edit, proc_orig, proc_cor, gb_spell, tag_map, nlp, stemmer)
+						cat = cat_rules.auto_type_edit(auto_edit, proc_orig, proc_cor, gb_spell, tag_map, nlp, stemmer)
 						auto_edit[2] = cat
 						# Write the edit to the output m2 file.
 						out_m2.write(toolbox.formatEdit(auto_edit, coder)+"\n")

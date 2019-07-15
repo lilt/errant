@@ -3,26 +3,31 @@ import os
 import spacy
 import sys
 from contextlib import ExitStack
-from nltk.stem.lancaster import LancasterStemmer
 import scripts.align_text as align_text
 import scripts.cat_rules as cat_rules
 import scripts.toolbox as toolbox
 
 
+def get_weights_from_edits(edits, cor_line):
+
+    weights = ["1"] * len(cor_line.split())
+    for edit in edits:
+        cor_start, cor_end = edit[-2:]
+        weights[cor_start:cor_end] = ["3"] * (cor_end - cor_start)
+
+    assert len(weights) == len(cor_line.split()), "%s, %s" % (weights, cor_line.split())
+    return " ".join(weights)
+
+
 def main(args):
-    # Get base working directory.
-    basename = os.path.dirname(os.path.realpath(__file__))
-    print("Loading resources...")
-    # Load Tokenizer and other resources
-    nlp = spacy.load("en")
-    # Lancaster Stemmer
-    stemmer = LancasterStemmer()
-    # GB English word list (inc -ise and -ize)
-    gb_spell = toolbox.loadDictionary(basename+"/resources/en_GB-large.txt")
-    # Part of speech map file
-    tag_map = toolbox.loadTagMap(basename+"/resources/en-ptb_map")
+
+    print("Loading Spacy resources")
+    nlp = spacy.load(args.lang)
     # Setup output m2 file
     out_m2 = open(args.out, "w")
+    out_weights = None
+    if args.weights is not None:
+        out_weights = open(args.weights, "w")
 
     # ExitStack lets us process an arbitrary number of files line by line simultaneously.
     # See https://stackoverflow.com/questions/24108769/how-to-read-and-process-multiple-files-simultaneously-in-python
@@ -45,16 +50,20 @@ def main(args):
                 # Identical sentences have no edits, so just write noop.
                 if orig_sent == cor_sent:
                     out_m2.write("A -1 -1|||noop|||-NONE-|||REQUIRED|||-NONE-|||"+str(cor_id)+"\n")
+                    if out_weights is not None:
+                        out_weights.write(" ".join(["1"] * len(cor_sent.split())) + "\n")
                 # Otherwise, do extra processing.
                 else:
                     # Markup the corrected sentence with spacy (assume tokenized)
                     proc_cor = toolbox.applySpacy(cor_sent.strip().split(), nlp)
                     # Auto align the parallel sentences and extract the edits.
-                    auto_edits = align_text.getAutoAlignedEdits(proc_orig, proc_cor, nlp, args)
+                    auto_edits = align_text.getAutoAlignedEdits(proc_orig, proc_cor, args)
+                    if out_weights is not None:
+                        out_weights.write(get_weights_from_edits(edits=auto_edits, cor_line=cor_sent) + "\n")
                     # Loop through the edits.
                     for auto_edit in auto_edits:
                         # Give each edit an automatic error type.
-                        cat = cat_rules.autoTypeEdit(auto_edit, proc_orig, proc_cor, gb_spell, tag_map, nlp, stemmer)
+                        cat = cat_rules.auto_type_edit(auto_edit, proc_orig, proc_cor)
                         auto_edit[2] = cat
                         # Write the edit to the output m2 file.
                         out_m2.write(toolbox.formatEdit(auto_edit, cor_id)+"\n")
@@ -74,6 +83,8 @@ if __name__ == "__main__":
     parser.add_argument("-cor", help="The paths to >= 1 corrected text files.", nargs="+", default=[], required=True)
     parser.add_argument("-out", help="The output filepath.", required=True)
     parser.add_argument("-lev", help="Use standard Levenshtein to align sentences.", action="store_true")
+    parser.add_argument("-lang", help="language for corpus.")
+    parser.add_argument("-weights", help="target weights file.")
     parser.add_argument("-merge", choices=["rules", "all-split", "all-merge", "all-equal"], default="rules",
                         help="Choose a merging strategy for automatic alignment.\n"
                             "rules: Use a rule-based merging strategy (default)\n"
