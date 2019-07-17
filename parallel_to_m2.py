@@ -1,5 +1,5 @@
 import argparse
-import os
+import pickle
 import spacy
 import sys
 from contextlib import ExitStack
@@ -23,55 +23,61 @@ def main(args):
 
     print("Loading Spacy resources")
     nlp = spacy.load(args.lang)
-    # Setup output m2 file
     out_m2 = open(args.out, "w")
     out_weights = None
+    edits = None
     if args.weights is not None:
         out_weights = open(args.weights, "w")
+    if args.edits is not None:
+        edits = []
 
-    # ExitStack lets us process an arbitrary number of files line by line simultaneously.
-    # See https://stackoverflow.com/questions/24108769/how-to-read-and-process-multiple-files-simultaneously-in-python
     print("Processing files...")
     with ExitStack() as stack:
         in_files = [stack.enter_context(open(i)) for i in [args.orig]+args.cor]
-        # Process each line of all input files.
         for line_id, line in enumerate(zip(*in_files)):
             orig_sent = line[0].strip()
             cor_sents = line[1:]
-            # If orig sent is empty, skip the line
-            if not orig_sent: continue
-            # Write the original sentence to the output m2 file.
+
+            if not orig_sent:
+                continue
+
             out_m2.write("S "+orig_sent+"\n")
-            # Markup the original sentence with spacy (assume tokenized)
+            if edits is not None:
+                edits.append([])
+
             proc_orig = toolbox.applySpacy(orig_sent.split(), nlp)
-            # Loop through the corrected sentences
             for cor_id, cor_sent in enumerate(cor_sents):
                 cor_sent = cor_sent.strip()
-                # Identical sentences have no edits, so just write noop.
+
                 if orig_sent == cor_sent:
                     out_m2.write("A -1 -1|||noop|||-NONE-|||REQUIRED|||-NONE-|||"+str(cor_id)+"\n")
                     if out_weights is not None:
                         out_weights.write(" ".join(["1"] * len(cor_sent.split())) + "\n")
-                # Otherwise, do extra processing.
+
                 else:
-                    # Markup the corrected sentence with spacy (assume tokenized)
                     proc_cor = toolbox.applySpacy(cor_sent.strip().split(), nlp)
-                    # Auto align the parallel sentences and extract the edits.
                     auto_edits = align_text.getAutoAlignedEdits(proc_orig, proc_cor, args)
+
                     if out_weights is not None:
                         out_weights.write(get_weights_from_edits(edits=auto_edits, cor_line=cor_sent) + "\n")
-                    # Loop through the edits.
+
                     for auto_edit in auto_edits:
-                        # Give each edit an automatic error type.
                         cat = cat_rules.auto_type_edit(auto_edit, proc_orig, proc_cor)
                         auto_edit[2] = cat
-                        # Write the edit to the output m2 file.
                         out_m2.write(toolbox.formatEdit(auto_edit, cor_id)+"\n")
-            # Write a newline when we have processed all corrections for a given sentence.
+                        if edits is not None:
+                            edits[line_id].append(((auto_edit[0], auto_edit[1]), (auto_edit[-2], auto_edit[-1])))
+
             out_m2.write("\n")
             if (line_id + 1) % 1000 == 0:
                 sys.stdout.write("Processed %d lines\r" % (line_id + 1))
                 sys.stdout.flush()
+
+    if out_weights is not None:
+        out_weights.close()
+    if edits is not None:
+        with open(args.edits, "wb") as edits_fp:
+            pickle.dump(edits, edits_fp)
 
 
 if __name__ == "__main__":
@@ -85,6 +91,7 @@ if __name__ == "__main__":
     parser.add_argument("-lev", help="Use standard Levenshtein to align sentences.", action="store_true")
     parser.add_argument("-lang", help="language for corpus.")
     parser.add_argument("-weights", help="target weights file.")
+    parser.add_argument("-edits", help="edits file.")
     parser.add_argument("-merge", choices=["rules", "all-split", "all-merge", "all-equal"], default="rules",
                         help="Choose a merging strategy for automatic alignment.\n"
                             "rules: Use a rule-based merging strategy (default)\n"
