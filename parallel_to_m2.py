@@ -1,11 +1,13 @@
 import argparse
 import pickle
-import spacy
 import sys
 from contextlib import ExitStack
 import scripts.align_text as align_text
 import scripts.cat_rules as cat_rules
 import scripts.toolbox as toolbox
+
+from tagger.Utils import readDictionary
+from tagger.RDRPOSTagger import RDRPOSTagger
 
 
 def get_weights_from_edits(edits, cor_line):
@@ -21,8 +23,10 @@ def get_weights_from_edits(edits, cor_line):
 
 def main(args):
 
-    print("Loading Spacy resources")
-    nlp = spacy.load(args.lang)
+    tagger = RDRPOSTagger()
+    tagger.constructSCRDRtreeFromRDRfile(rulesFilePath="{}/train.UniPOS.RDR".format(args.tagger))
+    tagger_dict = readDictionary(inputFile="{}/train.UniPOS.DICT".format(args.tagger))
+
     out_m2 = open(args.out, "w")
     out_weights = None
     edits = None
@@ -45,7 +49,7 @@ def main(args):
             if edits is not None:
                 edits.append([])
 
-            proc_orig = toolbox.applySpacy(orig_sent.split(), nlp)
+            proc_orig = tagger.tag_raw_sentence(DICT=tagger_dict, rawLine=orig_sent)
             for cor_id, cor_sent in enumerate(cor_sents):
                 cor_sent = cor_sent.strip()
 
@@ -55,8 +59,8 @@ def main(args):
                         out_weights.write(" ".join(["1"] * len(cor_sent.split())) + "\n")
 
                 else:
-                    proc_cor = toolbox.applySpacy(cor_sent.strip().split(), nlp)
-                    auto_edits = align_text.getAutoAlignedEdits(proc_orig, proc_cor, args)
+                    proc_cor = tagger.tag_raw_sentence(DICT=tagger_dict, rawLine=cor_sent)
+                    auto_edits = align_text.get_auto_aligned_edits(proc_orig, proc_cor, args)
 
                     if out_weights is not None:
                         out_weights.write(get_weights_from_edits(edits=auto_edits, cor_line=cor_sent) + "\n")
@@ -89,7 +93,7 @@ if __name__ == "__main__":
     parser.add_argument("-cor", help="The paths to >= 1 corrected text files.", nargs="+", default=[], required=True)
     parser.add_argument("-out", help="The output filepath.", required=True)
     parser.add_argument("-lev", help="Use standard Levenshtein to align sentences.", action="store_true")
-    parser.add_argument("-lang", help="language for corpus.")
+    parser.add_argument("-tagger", help="tagger_path.")
     parser.add_argument("-weights", help="target weights file.")
     parser.add_argument("-edits", help="edits file.")
     parser.add_argument("-merge", choices=["rules", "all-split", "all-merge", "all-equal"], default="rules",

@@ -7,7 +7,8 @@ import scripts.rdlextra as DL
 
 # Some global variables
 NLP = None
-CONTENT_POS = {POS.ADJ, POS.ADV, POS.NOUN, POS.VERB}
+CONTENT_POS = {"ADJ", "ADV", "NOUN", "VERB"}
+punctuations = set(".,:;'!?-—–_°«»()[]{}<>&*# $£%+-=<>|/\\@").union(set(punctuation))
 
 
 def get_opcodes(alignment):
@@ -88,23 +89,23 @@ def process_edits(source, target, edits):
         s = source[edits[start][1]:edits[end][2]]
         t = target[edits[start][3]:edits[end][4]]
         # Possessive suffixes merged with previous token: [friends -> friend 's]
-        if s[-1].tag_ == "POS" or t[-1].tag_ == "POS":
+        if s[-1][1] == "POS" or t[-1][1] == "POS":
             return process_edits(source, target, edits[:end-1]) + merge_edits(edits[end-1:end+1]) + process_edits(source, target, edits[end+1:])
         # Case changes
-        if s[-1].lower_ == t[-1].lower_:
+        if s[-1][0].lower() == t[-1][0].lower():
             # Merge first token I or D of arbitrary length: [Cat -> The big cat]
-            if start == 0 and ((len(s) == 1 and t[0].text[0].isupper()) or (len(t) == 1 and s[0].text[0].isupper())):
+            if start == 0 and ((len(s) == 1 and t[0][0][0].isupper()) or (len(t) == 1 and s[0][0][0].isupper())):
                 return merge_edits(edits[start:end+1]) + process_edits(source, target, edits[end+1:])
             # Merge with previous punctuation: [, we -> . We], [we -> . We]
             if (len(s) > 1 and is_punct(s[-2])) or (len(t) > 1 and is_punct(t[-2])):
                 return process_edits(source, target, edits[:end-1]) + merge_edits(edits[end-1:end+1]) + process_edits(source, target, edits[end+1:])
         # Whitespace/hyphens: [bestfriend -> best friend], [sub - way -> subway]
-        s_str = re.sub("['-]", "", "".join([tok.lower_ for tok in s]))
-        t_str = re.sub("['-]", "", "".join([tok.lower_ for tok in t]))
+        s_str = re.sub("['-]", "", "".join([tok[0].lower() for tok in s]))
+        t_str = re.sub("['-]", "", "".join([tok[0].lower() for tok in t]))
         if s_str == t_str:
             return process_edits(source, target, edits[:start]) + merge_edits(edits[start:end+1]) + process_edits(source, target, edits[end+1:])
         # POS-based merging: Same POS or infinitive/phrasal verbs: [to eat -> eating], [watch -> look at]
-        pos_set = set([tok.pos for tok in s]+[tok.pos for tok in t])
+        pos_set = set([tok[1] for tok in s]+[tok[1] for tok in t])
         if (len(pos_set) == 1 and len(s) != len(t)) or pos_set == {POS.PART, POS.VERB}:
             return process_edits(source, target, edits[:start]) + merge_edits(edits[start:end+1]) + process_edits(source, target, edits[end+1:])
         # Split rules take effect when we get to smallest chunks
@@ -113,8 +114,8 @@ def process_edits(source, target, edits):
             if len(s) == len(t) == 2:
                 return process_edits(source, target, edits[:start+1]) + process_edits(source, target, edits[start+1:])
             # Similar substitutions at start or end
-            if (ops[start] == "S" and char_cost(s[0].text, t[0].text) < 0.25) or \
-                (ops[end] == "S" and char_cost(s[-1].text, t[-1].text) < 0.25):
+            if (ops[start] == "S" and char_cost(s[0][0], t[0][0]) < 0.25) or \
+                (ops[end] == "S" and char_cost(s[-1][0], t[-1][0]) < 0.25):
                 return process_edits(source, target, edits[:start+1]) + process_edits(source, target, edits[start+1:])
             # Split final determiners
             if end == len(edits)-1 and ((ops[-1] in {"D", "S"} and s[-1].pos == POS.DET) or \
@@ -129,12 +130,12 @@ def process_edits(source, target, edits):
 
 # Is the token a content word?
 def is_content(A):
-    return A.pos in CONTENT_POS
+    return A[1] in CONTENT_POS
 
 
 # Check whether token is punctuation
 def is_punct(token):
-    return token.pos == POS.PUNCT or token.text in punctuation
+    return token[1] == "PUNCT" or token[0] in punctuations
 
 
 # all-split: No edits are ever merged. Everything is 1:1, 1:0 or 0:1 only.
@@ -216,16 +217,16 @@ def levSubstitution(a,b,c,d):
 # Input 4: Command line args.
 # Output: A list of lists. Each sublist is an edit of the form:
 # edit = [orig_start, orig_end, cat, cor, cor_start, cor_end]
-def getAutoAlignedEdits(orig, cor, args):
+def get_auto_aligned_edits(orig, cor, args):
     # Get a list of strings from the spacy objects.
-    orig_toks = [tok.text for tok in orig]
-    cor_toks = [tok.text for tok in cor]
+    orig_toks = [tok[0] for tok in orig]
+    cor_toks = [tok[0] for tok in cor]
     # Align using Levenshtein.
     if args.lev:
-        alignments = DL.WagnerFischer(orig_toks, cor_toks, orig, cor, substitution=levSubstitution, transposition=levTransposition)
+        alignments = DL.WagnerFischer(orig_toks, cor_toks, substitution=levSubstitution, transposition=levTransposition)
     # Otherwise, use linguistically enhanced Damerau-Levenshtein
     else:
-        alignments = DL.WagnerFischer(orig_toks, cor_toks, orig, cor, substitution=token_substitution)
+        alignments = DL.WagnerFischer(orig_toks, cor_toks, substitution=token_substitution)
 
     # Get the alignment with the highest score. There is usually only 1 best in DL due to custom costs.
     alignment = next(alignments.alignments(True)) # True uses Depth-first search.
