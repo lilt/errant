@@ -118,8 +118,8 @@ def process_edits(source, target, edits):
                 (ops[end] == "S" and char_cost(s[-1][0], t[-1][0]) < 0.25):
                 return process_edits(source, target, edits[:start+1]) + process_edits(source, target, edits[start+1:])
             # Split final determiners
-            if end == len(edits)-1 and ((ops[-1] in {"D", "S"} and s[-1].pos == POS.DET) or \
-                (ops[-1] in {"I", "S"} and t[-1].pos == POS.DET)):
+            if end == len(edits)-1 and ((ops[-1] in {"D", "S"} and s[-1][1] == POS.DET) or \
+                (ops[-1] in {"I", "S"} and t[-1][1] == POS.DET)):
                 return process_edits(source, target, edits[:-1]) + [edits[-1]]
         # Set content word flag
         if not pos_set.isdisjoint(CONTENT_POS): content = True
@@ -178,7 +178,7 @@ def lemma_cost(A, B):
 # Cost is 0 if POS are the same, else 0.25 if both are content, else 0.5.
 # Content words more likely to align to other content words.
 def pos_cost(A, B):
-    if A.pos == B.pos:
+    if A[1] == B[1]:
         return 0
     elif is_content(A) and is_content(B):
         return 0.25
