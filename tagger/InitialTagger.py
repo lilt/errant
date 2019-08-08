@@ -6,7 +6,7 @@ def initialize_sentence(freq_dict, sentence):
     tagged_sentence = []
     for word in words:
         if word in ["“", "”", "\""]:
-            tagged_sentence.append(("''/", freq_dict["''"]))
+            tagged_sentence.append(("''/", freq_dict["TAG4UNKN-PUNCT"]))
             continue
 
         decoded_word = word
