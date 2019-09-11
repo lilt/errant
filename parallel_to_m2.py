@@ -42,12 +42,13 @@ def main(args):
             orig_sent = line[0].strip()
             cor_sents = line[1:]
 
+            if edits is not None:
+                edits.append([])
+
             if not orig_sent:
                 continue
 
             out_m2.write("S "+orig_sent+"\n")
-            if edits is not None:
-                edits.append([])
 
             proc_orig = tagger.tag_raw_sentence(DICT=tagger_dict, rawLine=orig_sent)
             for cor_id, cor_sent in enumerate(cor_sents):
