@@ -24,8 +24,8 @@ def get_weights_from_edits(edits, cor_line):
 def main(args):
 
     tagger = RDRPOSTagger()
-    tagger.constructSCRDRtreeFromRDRfile(rulesFilePath="{}/train.UniPOS.RDR".format(args.tagger))
-    tagger_dict = readDictionary(inputFile="{}/train.UniPOS.DICT".format(args.tagger))
+    tagger.constructSCRDRtreeFromRDRfile(rulesFilePath=args.tagger_rdr)
+    tagger_dict = readDictionary(inputFile=args.tagger_dict)
 
     out_m2 = open(args.out, "w")
     out_weights = None
@@ -94,7 +94,8 @@ if __name__ == "__main__":
     parser.add_argument("-cor", help="The paths to >= 1 corrected text files.", nargs="+", default=[], required=True)
     parser.add_argument("-out", help="The output filepath.", required=True)
     parser.add_argument("-lev", help="Use standard Levenshtein to align sentences.", action="store_true")
-    parser.add_argument("-tagger", help="tagger_path.")
+    parser.add_argument("-tagger_rdr", help="tagger rdr path")
+    parser.add_argument("-tagger_dict", help="tagger dict path")
     parser.add_argument("-weights", help="target weights file.")
     parser.add_argument("-edits", help="edits file.")
     parser.add_argument("-merge", choices=["rules", "all-split", "all-merge", "all-equal"], default="rules",
