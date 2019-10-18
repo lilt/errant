@@ -108,6 +108,7 @@ def TRANSPOSITION(A, B, A_extra=None, B_extra=None):
 
 Trace = collections.namedtuple("Trace", ["cost", "ops"])
 
+
 class WagnerFischer(object):
 
     """
