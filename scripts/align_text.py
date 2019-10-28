@@ -2,7 +2,6 @@ from difflib import SequenceMatcher
 from itertools import combinations, groupby
 from string import punctuation
 import re
-import spacy.parts_of_speech as POS
 import scripts.rdlextra as DL
 
 # Some global variables
@@ -106,7 +105,7 @@ def process_edits(source, target, edits):
             return process_edits(source, target, edits[:start]) + merge_edits(edits[start:end+1]) + process_edits(source, target, edits[end+1:])
         # POS-based merging: Same POS or infinitive/phrasal verbs: [to eat -> eating], [watch -> look at]
         pos_set = set([tok[1] for tok in s]+[tok[1] for tok in t])
-        if (len(pos_set) == 1 and len(s) != len(t)) or pos_set == {POS.PART, POS.VERB}:
+        if (len(pos_set) == 1 and len(s) != len(t)) or pos_set == {"PART", "VERB"}:
             return process_edits(source, target, edits[:start]) + merge_edits(edits[start:end+1]) + process_edits(source, target, edits[end+1:])
         # Split rules take effect when we get to smallest chunks
         if end-start < 2:
@@ -115,17 +114,19 @@ def process_edits(source, target, edits):
                 return process_edits(source, target, edits[:start+1]) + process_edits(source, target, edits[start+1:])
             # Similar substitutions at start or end
             if (ops[start] == "S" and char_cost(s[0][0], t[0][0]) < 0.25) or \
-                (ops[end] == "S" and char_cost(s[-1][0], t[-1][0]) < 0.25):
+                    (ops[end] == "S" and char_cost(s[-1][0], t[-1][0]) < 0.25):
                 return process_edits(source, target, edits[:start+1]) + process_edits(source, target, edits[start+1:])
             # Split final determiners
-            if end == len(edits)-1 and ((ops[-1] in {"D", "S"} and s[-1][1] == POS.DET) or \
-                (ops[-1] in {"I", "S"} and t[-1][1] == POS.DET)):
+            if end == len(edits)-1 and ((ops[-1] in {"D", "S"} and s[-1][1] == "DET") or
+                                        (ops[-1] in {"I", "S"} and t[-1][1] == "DET")):
                 return process_edits(source, target, edits[:-1]) + [edits[-1]]
         # Set content word flag
         if not pos_set.isdisjoint(CONTENT_POS): content = True
     # If all else fails, merge edits that contain content words
-    if content: return merge_edits(edits)
-    else: return edits
+    if content:
+        return merge_edits(edits)
+    else:
+        return edits
 
 
 # Is the token a content word?
